@@ -1,0 +1,67 @@
+{
+  "name": "Social AI — Twitter Follow Workflow",
+  "description": "Triggered by webhook from the Social AI Agent backend. Uses Browser Use node or HTTP to follow Twitter accounts.",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "type": "n8n-nodes-base.webhook",
+      "name": "Receive Task from Backend",
+      "parameters": {
+        "path": "twitter-follow",
+        "httpMethod": "POST",
+        "responseMode": "lastNode"
+      },
+      "position": [200, 300]
+    },
+    {
+      "id": "extract-params",
+      "type": "n8n-nodes-base.set",
+      "name": "Extract Task Parameters",
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "query",    "value": "={{ $json.query }}" },
+            { "name": "count",    "value": "={{ $json.count }}" },
+            { "name": "platform", "value": "={{ $json.platform }}" }
+          ]
+        }
+      },
+      "position": [400, 300]
+    },
+    {
+      "id": "call-backend-agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Trigger Browser Agent",
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/chat",
+        "sendHeaders": true,
+        "headers": {
+          "values": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ JSON.stringify({ message: 'Follow ' + $json.count + ' accounts about ' + $json.query + ' on twitter' }) }}"
+      },
+      "position": [600, 300]
+    },
+    {
+      "id": "respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "name": "Return Task ID",
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [800, 300]
+    }
+  ],
+  "connections": {
+    "Receive Task from Backend": { "main": [[{ "node": "Extract Task Parameters", "type": "main", "index": 0 }]] },
+    "Extract Task Parameters":  { "main": [[{ "node": "Trigger Browser Agent",    "type": "main", "index": 0 }]] },
+    "Trigger Browser Agent":    { "main": [[{ "node": "Return Task ID",           "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

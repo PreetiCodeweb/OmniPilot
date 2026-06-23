@@ -1,0 +1,65 @@
+{
+  "name": "Social AI — WhatsApp Send Message",
+  "description": "Receives a recipient + message from backend and sends via WhatsApp Web browser agent.",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "type": "n8n-nodes-base.webhook",
+      "name": "Receive WhatsApp Task",
+      "parameters": {
+        "path": "whatsapp-send",
+        "httpMethod": "POST",
+        "responseMode": "lastNode"
+      },
+      "position": [200, 300]
+    },
+    {
+      "id": "validate",
+      "type": "n8n-nodes-base.if",
+      "name": "Check Recipient + Message",
+      "parameters": {
+        "conditions": {
+          "string": [
+            { "value1": "={{ $json.recipient }}", "operation": "isNotEmpty" },
+            { "value1": "={{ $json.message }}",   "operation": "isNotEmpty" }
+          ]
+        }
+      },
+      "position": [400, 300]
+    },
+    {
+      "id": "send-via-agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Call Social AI Backend",
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/chat",
+        "sendHeaders": true,
+        "headers": { "values": [{ "name": "Content-Type", "value": "application/json" }] },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ JSON.stringify({ message: 'Send WhatsApp to ' + $json.recipient + ': ' + $json.message }) }}"
+      },
+      "position": [600, 260]
+    },
+    {
+      "id": "error-response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "name": "Missing Data Error",
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{ \"error\": \"recipient and message are required\" }",
+        "responseCode": 400
+      },
+      "position": [600, 380]
+    }
+  ],
+  "connections": {
+    "Receive WhatsApp Task":    { "main": [[{ "node": "Check Recipient + Message", "type": "main", "index": 0 }]] },
+    "Check Recipient + Message":{ "main": [
+      [{ "node": "Call Social AI Backend", "type": "main", "index": 0 }],
+      [{ "node": "Missing Data Error",     "type": "main", "index": 0 }]
+    ]},
+    "Call Social AI Backend": { "main": [[]] }
+  }
+}
