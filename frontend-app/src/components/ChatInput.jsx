@@ -51,9 +51,9 @@ export default function ChatInput({ onSend, isLoading, taskRunning }) {
           disabled={disabled}
           placeholder={
             taskRunning
-              ? '⏳ Agent is running, please wait...'
+              ? 'Agent is running, please wait...'
               : isLoading
-              ? '🧠 Thinking...'
+              ? 'Thinking...'
               : 'Tell me what to do — "Follow top trading accounts on Twitter"'
           }
           rows={1}

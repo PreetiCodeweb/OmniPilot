@@ -1,10 +1,10 @@
 const PROMPTS = [
-  { icon: '𝕏',  label: 'Follow trading accounts', text: 'Follow top 10 trading and stock market accounts on Twitter', color: '#1d9bf0' },
+  { icon: 'X',  label: 'Follow trading accounts', text: 'Follow top 5 trading and stock market accounts on Twitter', color: '#1d9bf0' },
   { icon: 'in', label: 'LinkedIn: coding channels', text: 'Follow top software engineering and AI companies on LinkedIn', color: '#0a66c2' },
-  { icon: '👾', label: 'Reddit: subscribe coding', text: 'Subscribe to the best coding and programming subreddits', color: '#ff4500' },
-  { icon: '💬', label: 'WhatsApp message', text: "Send a WhatsApp to ", color: '#22d98a' },
-  { icon: '📈', label: 'Business subreddits', text: 'Subscribe to business, startup and entrepreneurship subreddits', color: '#f5c518' },
-  { icon: '🤖', label: 'Follow AI channels', text: 'Follow top AI and machine learning accounts on Twitter', color: '#9b7fff' },
+  { icon: 'r/', label: 'Reddit: subscribe coding', text: 'Subscribe to the best coding and programming subreddits on Reddit', color: '#ff4500' },
+  { icon: 'WA', label: 'WhatsApp message', text: "Send a WhatsApp to Riya: I will be 10 minutes late", color: '#22d98a' },
+  { icon: '$', label: 'Business subreddits', text: 'Subscribe to business, startup and entrepreneurship subreddits on Reddit', color: '#f5c518' },
+  { icon: 'AI', label: 'Follow AI channels', text: 'Follow top 5 AI and machine learning accounts on Twitter', color: '#9b7fff' },
 ];
 
 export default function QuickPrompts({ onSelect }) {

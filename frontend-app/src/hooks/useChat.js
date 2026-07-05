@@ -9,12 +9,11 @@ export function useChat() {
     {
       id: uid(),
       role: 'assistant',
-      content: "Hey Preeti! 👋 I'm your Social AI Agent. Tell me what to do — follow trading accounts on Twitter, subscribe to coding subreddits, connect with business people on LinkedIn, or send a WhatsApp message. Just type naturally!",
+      content: "Hey Preeti. I can control Twitter, LinkedIn, Reddit, and WhatsApp through a real browser once the backend status panel shows the needed keys and browser tools are ready. Tell me an action in plain English.",
       type: 'text',
     }
   ]);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeLogs, setActiveLogs] = useState([]);
   const [taskRunning, setTaskRunning] = useState(false);
   const wsRef = useRef(null);
 
@@ -22,16 +21,11 @@ export function useChat() {
     setMessages(prev => [...prev, { id: uid(), ...msg }]);
   }, []);
 
-  const updateLastLogs = useCallback((log) => {
-    setActiveLogs(prev => [...prev, log]);
-  }, []);
-
   const send = useCallback(async (text) => {
     if (!text.trim() || isLoading) return;
 
     addMessage({ role: 'user', content: text, type: 'text' });
     setIsLoading(true);
-    setActiveLogs([]);
 
     try {
       const { reply, task, task_id } = await sendChat(text);
@@ -77,13 +71,23 @@ export function useChat() {
           }
         );
         wsRef.current = ws;
+      } else if (task?.preflight?.length) {
+        addMessage({
+          role: 'system',
+          type: 'logs',
+          logs: task.preflight.map(issue => `❌ ${issue}`),
+          platform: task.platform,
+          error: true,
+          done: true,
+        });
       }
     } catch (err) {
       addMessage({
         role: 'assistant',
-        content: `❌ Error: ${err.message}. Is the backend running? (cd backend && python main.py)`,
+        content: `Error: ${err.message}. Start the backend with uvicorn main:app --host 127.0.0.1 --port 8000 from the backend folder.`,
         type: 'text',
       });
+      setTaskRunning(false);
     } finally {
       setIsLoading(false);
     }

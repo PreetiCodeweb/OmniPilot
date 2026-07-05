@@ -1,12 +1,23 @@
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+async function parseApiError(res) {
+  let detail = '';
+  try {
+    const body = await res.json();
+    detail = body.detail || body.message || JSON.stringify(body);
+  } catch {
+    detail = await res.text();
+  }
+  return detail ? `${res.status} ${detail}` : String(res.status);
+}
+
 export async function sendChat(message, history = []) {
   const res = await fetch(`${BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, history }),
   });
-  if (!res.ok) throw new Error(`Chat API error: ${res.status}`);
+  if (!res.ok) throw new Error(`Chat API error: ${await parseApiError(res)}`);
   return res.json();
 }
 
@@ -17,7 +28,7 @@ export async function getHistory() {
 
 export async function checkHealth() {
   try {
-    const res = await fetch(`${BASE}/api/health`);
+    const res = await fetch(`${BASE}/api/status`);
     return res.json();
   } catch {
     return { status: 'offline' };

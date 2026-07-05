@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { checkHealth } from '../utils/api';
 
 const PLATFORMS = [
-  { name: 'Twitter / X',  icon: '𝕏',   color: '#1d9bf0', desc: 'Follow trading & coding accounts' },
-  { name: 'LinkedIn',     icon: 'in',   color: '#0a66c2', desc: 'Connect with business channels' },
-  { name: 'Reddit',       icon: '👾',   color: '#ff4500', desc: 'Subscribe to subreddits' },
-  { name: 'WhatsApp',     icon: '💬',   color: '#22d98a', desc: 'Send messages to contacts' },
+  { key: 'twitter', name: 'Twitter / X',  icon: 'X',  color: '#1d9bf0', desc: 'Follow accounts from search' },
+  { key: 'linkedin', name: 'LinkedIn',    icon: 'in', color: '#0a66c2', desc: 'Follow people and companies' },
+  { key: 'reddit', name: 'Reddit',        icon: 'r/', color: '#ff4500', desc: 'Join subreddits by topic' },
+  { key: 'whatsapp', name: 'WhatsApp',    icon: 'WA', color: '#22d98a', desc: 'Send Web messages' },
 ];
 
 const EXAMPLES = [
@@ -25,6 +25,9 @@ export default function Sidebar({ taskRunning }) {
   }, []);
 
   const isOnline = health?.status === 'ok';
+  const capabilities = health?.capabilities;
+  const llm = capabilities?.llm;
+  const browser = capabilities?.browser;
 
   return (
     <aside style={{
@@ -49,13 +52,12 @@ export default function Sidebar({ taskRunning }) {
             fontSize: '18px',
           }}>🤖</div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.02em' }}>Social AI</div>
+            <div style={{ fontWeight: 700, fontSize: '15px', letterSpacing: 0 }}>Social AI</div>
             <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>Automation Agent</div>
           </div>
         </div>
       </div>
 
-      {/* Backend status */}
       <div style={{ padding: '0 20px' }}>
         <div style={{
           background: 'var(--bg-card)',
@@ -77,10 +79,17 @@ export default function Sidebar({ taskRunning }) {
               {isOnline ? 'Backend Online' : 'Backend Offline'}
             </div>
             <div style={{ fontSize: '10px', color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-              {isOnline ? health.llm_provider?.toUpperCase() : 'python main.py'}
+              {isOnline ? `${llm?.provider || 'unknown'} / ${llm?.model || 'model'}` : 'uvicorn main:app'}
             </div>
           </div>
         </div>
+
+        {isOnline && (
+          <div style={{ marginTop: '8px', display: 'grid', gap: '6px' }}>
+            <ReadinessRow label="LLM" ready={llm?.ready} detail={llm?.provider || 'local'} />
+            <ReadinessRow label="Browser" ready={browser?.ready} detail={browser?.headless ? 'headless' : 'visible'} />
+          </div>
+        )}
 
         {taskRunning && (
           <div style={{
@@ -121,6 +130,7 @@ export default function Sidebar({ taskRunning }) {
               padding: '8px 10px',
               borderRadius: '8px',
               background: 'var(--bg-card)',
+              border: `1px solid ${capabilities?.platforms?.[p.key]?.ready ? p.color + '44' : 'var(--border)'}`,
             }}>
               <span style={{
                 width: 28, height: 28,
@@ -132,8 +142,21 @@ export default function Sidebar({ taskRunning }) {
                 color: p.color,
               }}>{p.icon}</span>
               <div>
-                <div style={{ fontSize: '12px', fontWeight: 600 }}>{p.name}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600 }}>{p.name}</div>
+                  <span style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: capabilities?.platforms?.[p.key]?.ready ? 'var(--green)' : 'var(--yellow)',
+                  }} />
+                </div>
                 <div style={{ fontSize: '10px', color: 'var(--text-3)' }}>{p.desc}</div>
+                {capabilities?.platforms?.[p.key]?.missing?.length > 0 && (
+                  <div style={{ fontSize: '9px', color: 'var(--yellow)', fontFamily: 'var(--mono)', marginTop: '2px' }}>
+                    Missing {capabilities.platforms[p.key].missing.join(', ')}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -159,5 +182,28 @@ export default function Sidebar({ taskRunning }) {
         </div>
       </div>
     </aside>
+  );
+}
+
+function ReadinessRow({ label, ready, detail }) {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      background: 'var(--bg)',
+      border: '1px solid var(--border)',
+      borderRadius: '8px',
+      padding: '7px 9px',
+    }}>
+      <span style={{ fontSize: '11px', color: 'var(--text-2)', fontWeight: 600 }}>{label}</span>
+      <span style={{
+        fontSize: '10px',
+        color: ready ? 'var(--green)' : 'var(--yellow)',
+        fontFamily: 'var(--mono)',
+      }}>
+        {ready ? 'READY' : 'SETUP'} {detail ? `· ${detail}` : ''}
+      </span>
+    </div>
   );
 }

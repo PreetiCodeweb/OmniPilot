@@ -1,12 +1,12 @@
 const PLATFORMS = {
-  twitter:   { label: 'Twitter / X', color: '#1d9bf0', icon: '𝕏' },
+  twitter:   { label: 'Twitter / X', color: '#1d9bf0', icon: 'X' },
   linkedin:  { label: 'LinkedIn',    color: '#0a66c2', icon: 'in' },
-  reddit:    { label: 'Reddit',      color: '#ff4500', icon: '👾' },
-  whatsapp:  { label: 'WhatsApp',    color: '#22d98a', icon: '💬' },
+  reddit:    { label: 'Reddit',      color: '#ff4500', icon: 'r/' },
+  whatsapp:  { label: 'WhatsApp',    color: '#22d98a', icon: 'WA' },
 };
 
 export default function PlatformBadge({ platform }) {
-  const p = PLATFORMS[platform?.toLowerCase()] || { label: platform, color: '#9b7fff', icon: '🤖' };
+  const p = PLATFORMS[platform?.toLowerCase()] || { label: platform, color: '#9b7fff', icon: 'AI' };
   return (
     <span style={{
       display: 'inline-flex',

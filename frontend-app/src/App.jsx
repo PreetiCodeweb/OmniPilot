@@ -35,11 +35,11 @@ export default function App() {
           flexShrink: 0,
         }}>
           <div>
-            <h1 style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.02em' }}>Social AI Agent</h1>
-            <p style={{ fontSize: '12px', color: 'var(--text-3)' }}>Browser automation for Twitter · LinkedIn · Reddit · WhatsApp</p>
+            <h1 style={{ fontSize: '16px', fontWeight: 700, letterSpacing: 0 }}>Social AI Agent</h1>
+            <p style={{ fontSize: '12px', color: 'var(--text-3)' }}>Live browser control for Twitter · LinkedIn · Reddit · WhatsApp</p>
           </div>
           <div style={{ display: 'flex', gap: '6px' }}>
-            {['🤖 Browser Use', 'n8n ready', 'Claude AI'].map(tag => (
+            {['Browser Use', 'Status checks', 'Live logs'].map(tag => (
               <span key={tag} style={{
                 fontSize: '10px', background: 'var(--bg-card)', border: '1px solid var(--border)',
                 borderRadius: '20px', padding: '3px 9px', color: 'var(--text-3)', fontFamily: 'var(--mono)',
