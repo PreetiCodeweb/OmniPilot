@@ -9,15 +9,22 @@ import asyncio
 import os
 from typing import AsyncGenerator
 from config.settings import settings
+from agents.common import build_agent_llm, run_simulation, validate_agent_preflight
 
 
 async def run_whatsapp_agent(task: dict) -> AsyncGenerator[str, None]:
     try:
         from browser_use import Agent
-        from langchain_anthropic import ChatAnthropic
-        from langchain_openai import ChatOpenAI
     except ImportError:
-        yield "❌ browser-use not installed. Run: pip install browser-use langchain-anthropic"
+        async for msg in run_simulation(task, "whatsapp", task.get("action", "send_message")):
+            yield msg
+        return
+
+    issues = validate_agent_preflight("whatsapp")
+    if issues:
+        yield "⚠️ Live automation prerequisites are incomplete. Switching to safe simulation mode."
+        async for msg in run_simulation(task, "whatsapp", task.get("action", "send_message")):
+            yield msg
         return
 
     recipient = task.get("recipient", "")
@@ -33,7 +40,8 @@ async def run_whatsapp_agent(task: dict) -> AsyncGenerator[str, None]:
     await asyncio.sleep(0.3)
 
     # Ensure session directory exists for persistent login
-    os.makedirs(settings.whatsapp_session_dir, exist_ok=True)
+    session_dir = os.path.abspath(settings.whatsapp_session_dir)
+    os.makedirs(session_dir, exist_ok=True)
 
     browser_task = f"""
     You are controlling a browser to send a WhatsApp message.
@@ -54,23 +62,11 @@ async def run_whatsapp_agent(task: dict) -> AsyncGenerator[str, None]:
     - Do not send to the wrong contact
     - If the contact is not found, report it and stop
     - Wait for the message to show sent checkmarks before finishing
+    - Reuse the existing WhatsApp Web session when the browser offers it
     """
 
     try:
-        if settings.llm_provider == "anthropic" and settings.anthropic_api_key:
-            llm = ChatAnthropic(
-                model="claude-sonnet-4-6",
-                api_key=settings.anthropic_api_key,
-                temperature=0
-            )
-        else:
-            llm = ChatOpenAI(
-                model="gpt-4o",
-                api_key=settings.openai_api_key,
-                temperature=0
-            )
-
-        agent = Agent(task=browser_task, llm=llm)
+        agent = Agent(task=browser_task, llm=build_agent_llm())
 
         yield "🤖 Browser agent started — WhatsApp Web is opening..."
         yield "⚠️  If you see a QR code prompt, scan it with your phone once!"

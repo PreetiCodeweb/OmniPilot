@@ -8,6 +8,7 @@ Logs into Reddit and subscribes to subreddits matching the user's interests
 import asyncio
 from typing import AsyncGenerator
 from config.settings import settings
+from agents.common import build_agent_llm, clamp_count, compact_list, run_simulation, validate_agent_preflight
 
 
 # Curated default subreddits by category
@@ -23,14 +24,20 @@ DEFAULT_SUBREDDITS = {
 async def run_reddit_agent(task: dict) -> AsyncGenerator[str, None]:
     try:
         from browser_use import Agent
-        from langchain_anthropic import ChatAnthropic
-        from langchain_openai import ChatOpenAI
     except ImportError:
-        yield "❌ browser-use not installed. Run: pip install browser-use langchain-anthropic"
+        async for msg in run_simulation(task, "reddit", task.get("action", "subscribe")):
+            yield msg
         return
 
-    targets = task.get("targets", ["programming", "trading", "business"])
-    count = task.get("count", 8)
+    issues = validate_agent_preflight("reddit")
+    if issues:
+        yield "⚠️ Live automation prerequisites are incomplete. Switching to safe simulation mode."
+        async for msg in run_simulation(task, "reddit", task.get("action", "subscribe")):
+            yield msg
+        return
+
+    targets = compact_list(task.get("targets", []), ["programming", "trading", "business"])
+    count = clamp_count(task.get("count"), default=6)
 
     # Build smart subreddit list from targets
     subreddit_pool = []
@@ -75,20 +82,7 @@ async def run_reddit_agent(task: dict) -> AsyncGenerator[str, None]:
     """
 
     try:
-        if settings.llm_provider == "anthropic" and settings.anthropic_api_key:
-            llm = ChatAnthropic(
-                model="claude-sonnet-4-6",
-                api_key=settings.anthropic_api_key,
-                temperature=0
-            )
-        else:
-            llm = ChatOpenAI(
-                model="gpt-4o",
-                api_key=settings.openai_api_key,
-                temperature=0
-            )
-
-        agent = Agent(task=browser_task, llm=llm)
+        agent = Agent(task=browser_task, llm=build_agent_llm())
 
         yield "🤖 Browser agent started!"
         result = await agent.run()

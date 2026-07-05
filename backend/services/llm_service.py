@@ -7,7 +7,6 @@ Supports Anthropic Claude (default) and OpenAI as fallback.
 
 import json
 import re
-from typing import Optional
 import anthropic
 import openai
 from config.settings import settings
@@ -49,46 +48,60 @@ User: "subscribe to coding subreddits on reddit"
 
 class LLMService:
     def __init__(self):
-        if settings.llm_provider == "anthropic" and settings.anthropic_api_key:
+        self.client = None
+        self.provider = settings.effective_llm_provider
+
+    def _client(self):
+        if self.client:
+            return self.client
+
+        if settings.effective_llm_provider == "anthropic":
             self.client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-            self.provider = "anthropic"
-        elif settings.openai_api_key:
+        elif settings.effective_llm_provider == "openai":
             self.client = openai.OpenAI(api_key=settings.openai_api_key)
-            self.provider = "openai"
-        else:
-            raise ValueError("No LLM API key configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in .env")
+
+        self.provider = settings.effective_llm_provider
+        return self.client
 
     def parse_intent(self, user_message: str, history: list[dict] = []) -> dict:
         """Convert a natural language message into a structured task dict."""
         messages = history + [{"role": "user", "content": user_message}]
 
-        if self.provider == "anthropic":
-            response = self.client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=512,
-                system=SYSTEM_PROMPT,
-                messages=messages
+        if settings.effective_llm_provider == "local":
+            return self._rule_parse(user_message)
+
+        try:
+            client = self._client()
+            if self.provider == "anthropic":
+                response = client.messages.create(
+                    model=settings.anthropic_model,
+                    max_tokens=512,
+                    system=SYSTEM_PROMPT,
+                    messages=messages
+                )
+                raw = response.content[0].text.strip()
+            else:
+                response = client.chat.completions.create(
+                    model=settings.openai_model,
+                    messages=[{"role": "system", "content": SYSTEM_PROMPT}] + messages,
+                    max_tokens=512
+                )
+                raw = response.choices[0].message.content.strip()
+        except Exception as exc:
+            task = self._rule_parse(user_message)
+            task["reply"] = (
+                f"{task['reply']} I used the local parser because the LLM call failed: {type(exc).__name__}."
             )
-            raw = response.content[0].text.strip()
-        else:
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "system", "content": SYSTEM_PROMPT}] + messages,
-                max_tokens=512
-            )
-            raw = response.choices[0].message.content.strip()
+            return task
 
         # Strip markdown code fences if present
         raw = re.sub(r"```json|```", "", raw).strip()
 
         try:
-            return json.loads(raw)
+            task = json.loads(raw)
+            return self._normalize_task(task, user_message)
         except json.JSONDecodeError:
-            return {
-                "platform": "unknown",
-                "action": "clarify",
-                "reply": "I didn't quite catch that. Could you be more specific? For example: 'Follow top trading accounts on Twitter' or 'Send a WhatsApp to Ankit saying I'm on my way'."
-            }
+            return self._rule_parse(user_message)
 
     def chat_response(self, user_message: str, context: str = "") -> str:
         """Plain conversational response for non-task messages."""
@@ -96,17 +109,21 @@ class LLMService:
         if context:
             system += f"\n\nContext: {context}"
 
+        if settings.effective_llm_provider == "local":
+            return "Tell me the platform and action, like 'Follow AI accounts on Twitter' or 'Send WhatsApp to Riya: I am on my way'."
+
+        client = self._client()
         if self.provider == "anthropic":
-            response = self.client.messages.create(
-                model="claude-sonnet-4-6",
+            response = client.messages.create(
+                model=settings.anthropic_model,
                 max_tokens=256,
                 system=system,
                 messages=[{"role": "user", "content": user_message}]
             )
             return response.content[0].text.strip()
         else:
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+            response = client.chat.completions.create(
+                model=settings.openai_model,
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user_message}
@@ -114,6 +131,83 @@ class LLMService:
                 max_tokens=256
             )
             return response.choices[0].message.content.strip()
+
+    def _normalize_task(self, task: dict, user_message: str) -> dict:
+        task.setdefault("platform", "unknown")
+        task.setdefault("action", "clarify")
+        task.setdefault("targets", [])
+        task.setdefault("count", 5)
+        task.setdefault("query", " ".join(task.get("targets", [])))
+        task.setdefault("reply", "I'm on it.")
+
+        if task["platform"] == "whatsapp":
+            task.setdefault("recipient", "")
+            task.setdefault("message", "")
+
+        return task
+
+    def _rule_parse(self, user_message: str) -> dict:
+        text = user_message.strip()
+        lower = text.lower()
+
+        platform = "unknown"
+        for candidate in ("twitter", "linkedin", "reddit", "whatsapp"):
+            if candidate in lower or (candidate == "twitter" and " x " in f" {lower} "):
+                platform = candidate
+                break
+
+        count_match = re.search(r"\b(\d{1,2})\b", lower)
+        count = int(count_match.group(1)) if count_match else 5
+        count = max(1, min(20, count))
+
+        if platform == "whatsapp":
+            recipient = ""
+            message = ""
+            match = re.search(r"(?:to|for)\s+([^:]+?)(?:\s+saying|\s+that|:|$)", text, re.IGNORECASE)
+            if match:
+                recipient = match.group(1).strip()
+            message_match = re.search(r"(?:saying|that|:)\s*(.+)$", text, re.IGNORECASE)
+            if message_match:
+                message = message_match.group(1).strip()
+            return {
+                "platform": "whatsapp",
+                "action": "send_message" if recipient and message else "clarify",
+                "recipient": recipient,
+                "message": message,
+                "targets": [],
+                "count": 1,
+                "reply": (
+                    f"I'll send {recipient} your WhatsApp message."
+                    if recipient and message
+                    else "Who should I message on WhatsApp, and what should I say?"
+                ),
+            }
+
+        if platform == "unknown":
+            return {
+                "platform": "unknown",
+                "action": "clarify",
+                "targets": [],
+                "count": count,
+                "query": "",
+                "reply": "Which platform should I use: Twitter, LinkedIn, Reddit, or WhatsApp?",
+            }
+
+        action = "subscribe" if platform == "reddit" else "search_and_follow"
+        cleaned = re.sub(r"\b(follow|subscribe|join|top|best|accounts|people|companies|subreddits|on|twitter|linkedin|reddit|x)\b", " ", lower)
+        targets = [part.strip(" .,#") for part in re.split(r",| and | & ", cleaned) if part.strip(" .,#")]
+        if not targets:
+            targets = ["ai", "software", "business"] if platform == "linkedin" else ["technology", "ai"]
+
+        query = " ".join(targets[:4])
+        return {
+            "platform": platform,
+            "action": action,
+            "targets": targets,
+            "count": count,
+            "query": query,
+            "reply": f"I'll use {platform.title()} to run a {action.replace('_', ' ')} task for: {query}.",
+        }
 
 
 llm_service = LLMService()

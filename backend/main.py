@@ -12,7 +12,6 @@ import asyncio
 import json
 import uuid
 from collections import deque
-from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,12 +20,19 @@ from pydantic import BaseModel
 from config.settings import settings
 from services.llm_service import llm_service
 from agents.agent_router import route_task
+from agents.common import get_capabilities, validate_agent_preflight
 
 app = FastAPI(title="Social AI Agent", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.cors_origin, "http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[
+        settings.cors_origin,
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,7 +55,18 @@ class ChatMessage(BaseModel):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "llm_provider": settings.llm_provider}
+    capabilities = get_capabilities()
+    return {
+        "status": "ok",
+        "llm_provider": capabilities["llm"]["provider"],
+        "llm_model": capabilities["llm"]["model"],
+        "browser_ready": capabilities["browser"]["ready"],
+    }
+
+
+@app.get("/api/status")
+async def status():
+    return {"status": "ok", "capabilities": get_capabilities()}
 
 
 @app.get("/api/history")
@@ -72,12 +89,25 @@ async def chat(body: ChatMessage):
     task = llm_service.parse_intent(user_msg, body.history)
     reply = task.get("reply", "I'm on it!")
 
+    preflight = []
+    if task.get("action") not in ("clarify", None) and task.get("platform") != "unknown":
+        preflight = validate_agent_preflight(task.get("platform", "unknown"))
+        if preflight:
+            task["actionable"] = False
+            task["preflight"] = preflight
+            reply = (
+                f"{reply} Before I can run it, fix: "
+                + "; ".join(preflight)
+            )
+        else:
+            task["actionable"] = True
+
     # Store assistant reply
     chat_history.append({"role": "assistant", "content": reply})
 
     # If it's an actionable task (not just a clarification), queue it
     task_id = None
-    if task.get("action") not in ("clarify", None) and task.get("platform") != "unknown":
+    if task.get("actionable") is True:
         task_id = str(uuid.uuid4())
         pending_tasks[task_id] = task
         task_logs[task_id] = []
@@ -125,4 +155,4 @@ async def run_task_ws(websocket: WebSocket, task_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host=settings.host, port=settings.port, reload=True)
+    uvicorn.run("main:app", host=settings.host, port=settings.port, reload=settings.reload)
