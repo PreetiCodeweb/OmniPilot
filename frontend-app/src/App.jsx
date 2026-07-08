@@ -35,7 +35,7 @@ export default function App() {
           flexShrink: 0,
         }}>
           <div>
-            <h1 style={{ fontSize: '16px', fontWeight: 700, letterSpacing: 0 }}>Social AI Agent</h1>
+            <h1 style={{ fontSize: '16px', fontWeight: 700, letterSpacing: 0 }}>OmniPilot</h1>
             <p style={{ fontSize: '12px', color: 'var(--text-3)' }}>Live browser control for Twitter · LinkedIn · Reddit · WhatsApp</p>
           </div>
           <div style={{ display: 'flex', gap: '6px' }}>
